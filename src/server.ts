@@ -73,14 +73,18 @@ app.use('/api/catalog', catalogRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
+// Defaults to all interfaces for local dev convenience. In production, set
+// HOST=127.0.0.1 so the Node process only accepts connections from Nginx on
+// the same machine — the public internet should only ever reach Nginx.
+const HOST = process.env.HOST || '0.0.0.0';
 
 connectDB().then(async () => {
   await syncModelIndexes();
   await seedSuperAdmin();
   await seedMedicineCatalog();
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+  app.listen(PORT, HOST, () => {
+    console.log(`Server running on ${HOST}:${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
   });
 });
 
