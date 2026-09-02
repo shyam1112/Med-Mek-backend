@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import User from '../models/User';
 import { AuthRequest } from '../types';
+import { sendPasswordResetEmail } from '../utils/mailer';
 
 const signToken = (userId: string, role: string): string => {
   return jwt.sign({ userId, role }, process.env.JWT_SECRET || 'secret', {
@@ -189,11 +190,19 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await user.save({ validateBeforeSave: false });
 
-    // In production: send email. For now return token in response (dev mode only)
+    const emailSent = await sendPasswordResetEmail(user.email, resetToken);
+
+    // Dev mode returns the token directly for local testing without real SMTP.
+    // In production the token is NEVER echoed back — even if sending failed —
+    // since that would let anyone with a known email address self-serve the
+    // reset code from the API response. A failed send is logged server-side
+    // (see mailer.ts) so it's visible in PM2 logs, not returned to the client.
     const isDev = process.env.NODE_ENV !== 'production';
     res.json({
       success: true,
-      message: 'Password reset token generated. Check your email.',
+      message: emailSent
+        ? 'Password reset code sent to your email.'
+        : 'Password reset token generated. Check your email.',
       ...(isDev && { resetToken }),
     });
   } catch {

@@ -9,11 +9,12 @@ import {
   deleteUser,
 } from '../controllers/adminController';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
+import { authLimiter } from '../middleware/rateLimiters';
 
 const router = Router();
 
 // Public admin login
-router.post('/login', adminLogin);
+router.post('/login', authLimiter, adminLogin);
 
 // All routes below require super admin JWT
 router.use(authenticate, requireSuperAdmin);

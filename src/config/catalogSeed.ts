@@ -78,6 +78,23 @@ const CATALOG_DATA = [
   { name: 'Envas 5', genericName: 'Enalapril', category: 'Cardiovascular', manufacturer: 'Cadila', dosageForm: 'Tablet', strength: '5mg', gstPercentage: 12, suggestedMRP: 58 },
   { name: 'Furosemide 40', genericName: 'Furosemide', category: 'Cardiovascular', manufacturer: 'Sun Pharma', dosageForm: 'Tablet', strength: '40mg', gstPercentage: 12, suggestedMRP: 32 },
   { name: 'Digoxin 0.25', genericName: 'Digoxin', category: 'Cardiovascular', manufacturer: 'GSK', dosageForm: 'Tablet', strength: '0.25mg', gstPercentage: 5, suggestedMRP: 28 },
+  { name: 'Amlodac 5', genericName: 'Amlodipine', category: 'Cardiovascular', manufacturer: 'Zydus Cadila', dosageForm: 'Tablet', strength: '5mg', gstPercentage: 12, suggestedMRP: 32 },
+  { name: 'Stamlo 5', genericName: 'Amlodipine', category: 'Cardiovascular', manufacturer: "Dr. Reddy's", dosageForm: 'Tablet', strength: '5mg', gstPercentage: 12, suggestedMRP: 34 },
+  { name: 'Telma H', genericName: 'Telmisartan + Hydrochlorothiazide', category: 'Cardiovascular', manufacturer: 'Glenmark', dosageForm: 'Tablet', strength: '40mg/12.5mg', gstPercentage: 12, suggestedMRP: 118 },
+  { name: 'Losar H 50', genericName: 'Losartan + Hydrochlorothiazide', category: 'Cardiovascular', manufacturer: 'Unichem', dosageForm: 'Tablet', strength: '50mg/12.5mg', gstPercentage: 12, suggestedMRP: 98 },
+  { name: 'Aten 50', genericName: 'Atenolol', category: 'Cardiovascular', manufacturer: 'Alembic', dosageForm: 'Tablet', strength: '50mg', gstPercentage: 12, suggestedMRP: 42 },
+  { name: 'Nebicard 5', genericName: 'Nebivolol', category: 'Cardiovascular', manufacturer: 'Torrent', dosageForm: 'Tablet', strength: '5mg', gstPercentage: 12, suggestedMRP: 145 },
+  { name: 'Met XL 50', genericName: 'Metoprolol Succinate', category: 'Cardiovascular', manufacturer: 'Sun Pharma', dosageForm: 'Tablet', strength: '50mg', gstPercentage: 12, suggestedMRP: 85 },
+  { name: 'Storvas 10', genericName: 'Atorvastatin', category: 'Cardiovascular', manufacturer: 'Sun Pharma', dosageForm: 'Tablet', strength: '10mg', gstPercentage: 12, suggestedMRP: 98 },
+  { name: 'Ecosprin AV 75', genericName: 'Aspirin + Atorvastatin', category: 'Cardiovascular', manufacturer: 'USV', dosageForm: 'Capsule', strength: '75mg/10mg', gstPercentage: 12, suggestedMRP: 105 },
+  { name: 'Clopilet A 75', genericName: 'Clopidogrel + Aspirin', category: 'Cardiovascular', manufacturer: 'Torrent', dosageForm: 'Tablet', strength: '75mg/75mg', gstPercentage: 12, suggestedMRP: 118 },
+  { name: 'Sorbitrate 5', genericName: 'Isosorbide Dinitrate', category: 'Cardiovascular', manufacturer: 'USV', dosageForm: 'Tablet', strength: '5mg', gstPercentage: 12, suggestedMRP: 18 },
+  { name: 'Monotrate 20', genericName: 'Isosorbide Mononitrate', category: 'Cardiovascular', manufacturer: 'Sun Pharma', dosageForm: 'Tablet', strength: '20mg', gstPercentage: 12, suggestedMRP: 62 },
+  { name: 'Aldactone 25', genericName: 'Spironolactone', category: 'Cardiovascular', manufacturer: 'RPG Life Sciences', dosageForm: 'Tablet', strength: '25mg', gstPercentage: 12, suggestedMRP: 45 },
+  { name: 'Dytor 10', genericName: 'Torsemide', category: 'Cardiovascular', manufacturer: 'Cipla', dosageForm: 'Tablet', strength: '10mg', gstPercentage: 12, suggestedMRP: 78 },
+  { name: 'Arkamin 0.1', genericName: 'Clonidine', category: 'Cardiovascular', manufacturer: 'Unichem', dosageForm: 'Tablet', strength: '0.1mg', gstPercentage: 12, suggestedMRP: 28 },
+  { name: 'Acitrom 1', genericName: 'Acenocoumarol', category: 'Cardiovascular', manufacturer: 'Abbott', dosageForm: 'Tablet', strength: '1mg', gstPercentage: 12, suggestedMRP: 55 },
+  { name: 'Clexane 40 Inj', genericName: 'Enoxaparin', category: 'Cardiovascular', manufacturer: 'Sanofi', dosageForm: 'Injection', strength: '40mg', gstPercentage: 12, suggestedMRP: 425 },
 
   // ── Diabetes ──────────────────────────────────────────────────────────────
   { name: 'Glycomet 500', genericName: 'Metformin', category: 'Diabetes', manufacturer: 'USV', dosageForm: 'Tablet', strength: '500mg', gstPercentage: 5, suggestedMRP: 38 },
@@ -93,6 +110,18 @@ const CATALOG_DATA = [
   { name: 'Insulin Actrapid', genericName: 'Regular Human Insulin', category: 'Diabetes', manufacturer: 'Novo Nordisk', dosageForm: 'Injection', strength: '100 IU/ml', gstPercentage: 0, suggestedMRP: 142 },
   { name: 'Wosulin 30/70', genericName: 'Insulin (30/70 Mix)', category: 'Diabetes', manufacturer: 'Wockhardt', dosageForm: 'Injection', strength: '100 IU/ml', gstPercentage: 0, suggestedMRP: 135 },
   { name: 'Pioglitazone 15', genericName: 'Pioglitazone', category: 'Diabetes', manufacturer: 'Sun Pharma', dosageForm: 'Tablet', strength: '15mg', gstPercentage: 12, suggestedMRP: 68 },
+  { name: 'Glycomet GP1', genericName: 'Glimepiride + Metformin', category: 'Diabetes', manufacturer: 'USV', dosageForm: 'Tablet', strength: '1mg/500mg', gstPercentage: 12, suggestedMRP: 78 },
+  { name: 'Glycomet GP2', genericName: 'Glimepiride + Metformin', category: 'Diabetes', manufacturer: 'USV', dosageForm: 'Tablet', strength: '2mg/500mg', gstPercentage: 12, suggestedMRP: 92 },
+  { name: 'Istamet 50/500', genericName: 'Sitagliptin + Metformin', category: 'Diabetes', manufacturer: 'MSD', dosageForm: 'Tablet', strength: '50mg/500mg', gstPercentage: 12, suggestedMRP: 195 },
+  { name: 'Zita 20', genericName: 'Teneligliptin', category: 'Diabetes', manufacturer: 'Glenmark', dosageForm: 'Tablet', strength: '20mg', gstPercentage: 12, suggestedMRP: 145 },
+  { name: 'Ziten 20', genericName: 'Teneligliptin', category: 'Diabetes', manufacturer: 'Alkem', dosageForm: 'Tablet', strength: '20mg', gstPercentage: 12, suggestedMRP: 138 },
+  { name: 'Trajenta 5', genericName: 'Linagliptin', category: 'Diabetes', manufacturer: 'Boehringer Ingelheim', dosageForm: 'Tablet', strength: '5mg', gstPercentage: 12, suggestedMRP: 385 },
+  { name: 'Volibo 0.2', genericName: 'Voglibose', category: 'Diabetes', manufacturer: 'Glenmark', dosageForm: 'Tablet', strength: '0.2mg', gstPercentage: 12, suggestedMRP: 68 },
+  { name: 'Glucobay 50', genericName: 'Acarbose', category: 'Diabetes', manufacturer: 'Bayer', dosageForm: 'Tablet', strength: '50mg', gstPercentage: 12, suggestedMRP: 95 },
+  { name: 'Glimestar 2', genericName: 'Glimepiride', category: 'Diabetes', manufacturer: 'Sun Pharma', dosageForm: 'Tablet', strength: '2mg', gstPercentage: 12, suggestedMRP: 58 },
+  { name: 'Lantus 100IU', genericName: 'Insulin Glargine', category: 'Diabetes', manufacturer: 'Sanofi', dosageForm: 'Injection', strength: '100 IU/ml', gstPercentage: 0, suggestedMRP: 895 },
+  { name: 'Novomix 30', genericName: 'Insulin Aspart (30/70 Mix)', category: 'Diabetes', manufacturer: 'Novo Nordisk', dosageForm: 'Injection', strength: '100 IU/ml', gstPercentage: 0, suggestedMRP: 425 },
+  { name: 'Huminsulin 30/70', genericName: 'Insulin (30/70 Mix)', category: 'Diabetes', manufacturer: 'Eli Lilly', dosageForm: 'Injection', strength: '100 IU/ml', gstPercentage: 0, suggestedMRP: 198 },
 
   // ── Respiratory ───────────────────────────────────────────────────────────
   { name: 'Asthalin Inhaler', genericName: 'Salbutamol', category: 'Respiratory', manufacturer: 'Cipla', dosageForm: 'Inhaler', strength: '100mcg/dose', gstPercentage: 12, suggestedMRP: 145 },
@@ -218,10 +247,20 @@ const CATALOG_DATA = [
   { name: 'Moov Cream', genericName: 'Diclofenac + Methyl Salicylate', category: 'Analgesic', manufacturer: 'Reckitt', dosageForm: 'Cream', strength: '30g', gstPercentage: 12, suggestedMRP: 118 },
 ];
 
+// Upserts by name so re-running after CATALOG_DATA grows (new deploys) adds
+// only the newly-added medicines, without touching or duplicating existing ones.
 export const seedMedicineCatalog = async (): Promise<void> => {
-  const count = await MedicineCatalog.countDocuments();
-  if (count > 0) return;
+  const result = await MedicineCatalog.bulkWrite(
+    CATALOG_DATA.map((medicine) => ({
+      updateOne: {
+        filter: { name: medicine.name },
+        update: { $setOnInsert: medicine },
+        upsert: true,
+      },
+    }))
+  );
 
-  await MedicineCatalog.insertMany(CATALOG_DATA);
-  console.log(`✓ Medicine catalog seeded → ${CATALOG_DATA.length} medicines loaded`);
+  if (result.upsertedCount > 0) {
+    console.log(`✓ Medicine catalog updated → ${result.upsertedCount} new medicines added`);
+  }
 };

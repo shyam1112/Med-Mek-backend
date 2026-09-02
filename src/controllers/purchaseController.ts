@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import Purchase from '../models/Purchase';
 import Medicine from '../models/Medicine';
 import Supplier from '../models/Supplier';
@@ -50,141 +51,173 @@ export const getPurchaseById = async (req: AuthRequest, res: Response): Promise<
 };
 
 export const createPurchase = async (req: AuthRequest, res: Response): Promise<void> => {
+  const session = await mongoose.startSession();
   try {
     const { supplierId, items, paidAmount, notes, purchaseDate } = req.body;
     const owner = req.userId;
 
-    const supplier = await Supplier.findOne({ _id: supplierId, owner });
-    if (!supplier) {
-      res.status(404).json({ success: false, message: 'Supplier not found.' });
-      return;
-    }
+    let responsePurchase: InstanceType<typeof Purchase> | null = null;
 
-    let subtotal = 0;
-    let gstAmount = 0;
-    const enrichedItems = [];
-
-    for (const item of items) {
-      let medicine;
-
-      if (item.medicineId) {
-        // Existing medicine in inventory
-        medicine = await Medicine.findOne({ _id: item.medicineId, owner });
-        if (!medicine) {
-          res.status(404).json({ success: false, message: `Medicine not found: ${item.medicineId}` });
-          return;
-        }
-      } else if (item.newMedicine) {
-        // New medicine — create it now with stock 0 (purchase loop below will add stock)
-        medicine = await Medicine.create({
-          owner,
-          name: item.newMedicine.name,
-          genericName: item.newMedicine.genericName || '',
-          category: item.newMedicine.category || 'Other',
-          manufacturer: item.newMedicine.manufacturer || '',
-          dosageForm: item.newMedicine.dosageForm || '',
-          strength: item.newMedicine.strength || '',
-          packSize: item.newMedicine.packSize || '',
-          barcode: item.newMedicine.barcode || '',
-          hsnCode: item.newMedicine.hsnCode || '',
-          scheduleClass: item.newMedicine.scheduleClass || 'None',
-          unitOfMeasure: item.newMedicine.unitOfMeasure || 'Strip',
-          storageCondition: item.newMedicine.storageCondition || '',
-          location: item.newMedicine.location || '',
-          batchNumber: item.batchNumber || '',
-          expiryDate: item.expiryDate ? new Date(item.expiryDate) : undefined,
-          purchasePrice: item.purchasePrice,
-          sellingPrice: item.newMedicine.sellingPrice || item.purchasePrice,
-          gstPercentage: item.gstPercentage ?? item.newMedicine.gstPercentage ?? 12,
-          currentStock: 0,
-          minimumStockLevel: item.newMedicine.minimumStockLevel ?? 10,
-          isActive: true,
-        });
-        // Attach the new ID so the stock-update loop below can find it
-        item.medicineId = medicine._id.toString();
-      } else {
-        res.status(400).json({ success: false, message: 'Each item must have a medicineId or newMedicine data.' });
-        return;
+    await session.withTransaction(async () => {
+      const supplier = await Supplier.findOne({ _id: supplierId, owner }).session(session);
+      if (!supplier) {
+        throw Object.assign(new Error('Supplier not found.'), { statusCode: 404 });
       }
 
-      const itemTotal = item.quantity * item.purchasePrice;
-      const itemGST = (itemTotal * item.gstPercentage) / 100;
-      subtotal += itemTotal;
-      gstAmount += itemGST;
+      let subtotal = 0;
+      let gstAmount = 0;
+      const enrichedItems = [];
+      const stockEvents: {
+        medicineId: unknown; medicineName: string; quantity: number; previousStock: number; newStock: number;
+      }[] = [];
 
-      const enrichedItem: Record<string, unknown> = {
-        medicine: medicine._id,
-        medicineName: medicine.name,
-        batchNumber: item.batchNumber || medicine.batchNumber || '',
-        quantity: item.quantity,
-        purchasePrice: item.purchasePrice,
-        gstPercentage: item.gstPercentage || medicine.gstPercentage,
-        totalAmount: itemTotal + itemGST,
-      };
-      const expiryDate = item.expiryDate || medicine.expiryDate;
-      if (expiryDate) enrichedItem.expiryDate = expiryDate;
-      enrichedItems.push(enrichedItem);
-    }
+      for (const item of items) {
+        let medicine;
 
-    const totalAmount = subtotal + gstAmount;
-    const paid = paidAmount || 0;
-    const balance = totalAmount - paid;
-    const paymentStatus = balance <= 0 ? 'paid' : paid > 0 ? 'partial' : 'pending';
-    const invoiceNumber = await generateInvoiceNumber(owner!);
+        if (item.medicineId) {
+          // Existing medicine in inventory
+          medicine = await Medicine.findOne({ _id: item.medicineId, owner }).session(session);
+          if (!medicine) {
+            throw Object.assign(new Error(`Medicine not found: ${item.medicineId}`), { statusCode: 404 });
+          }
+        } else if (item.newMedicine) {
+          // New medicine — create it now with stock 0 (stock-update loop below will add stock)
+          [medicine] = await Medicine.create(
+            [{
+              owner,
+              name: item.newMedicine.name,
+              genericName: item.newMedicine.genericName || '',
+              category: item.newMedicine.category || 'Other',
+              manufacturer: item.newMedicine.manufacturer || '',
+              dosageForm: item.newMedicine.dosageForm || '',
+              strength: item.newMedicine.strength || '',
+              packSize: item.newMedicine.packSize || '',
+              barcode: item.newMedicine.barcode || '',
+              hsnCode: item.newMedicine.hsnCode || '',
+              scheduleClass: item.newMedicine.scheduleClass || 'None',
+              unitOfMeasure: item.newMedicine.unitOfMeasure || 'Strip',
+              storageCondition: item.newMedicine.storageCondition || '',
+              location: item.newMedicine.location || '',
+              batchNumber: item.batchNumber || '',
+              expiryDate: item.expiryDate ? new Date(item.expiryDate) : undefined,
+              purchasePrice: item.purchasePrice,
+              sellingPrice: item.newMedicine.sellingPrice || item.purchasePrice,
+              gstPercentage: item.gstPercentage ?? item.newMedicine.gstPercentage ?? 12,
+              currentStock: 0,
+              minimumStockLevel: item.newMedicine.minimumStockLevel ?? 10,
+              isActive: true,
+            }],
+            { session }
+          );
+          // Attach the new ID so the stock-update loop below can find it
+          item.medicineId = medicine._id.toString();
+        } else {
+          throw Object.assign(new Error('Each item must have a medicineId or newMedicine data.'), { statusCode: 400 });
+        }
 
-    const purchase = await Purchase.create({
-      owner,
-      invoiceNumber,
-      supplier: supplier._id,
-      supplierName: supplier.name,
-      purchaseDate: purchaseDate || new Date(),
-      items: enrichedItems,
-      subtotal,
-      gstAmount,
-      totalAmount,
-      paidAmount: paid,
-      balanceAmount: balance,
-      paymentStatus,
-      notes: notes || '',
-    });
+        const itemTotal = item.quantity * item.purchasePrice;
+        const itemGST = (itemTotal * item.gstPercentage) / 100;
+        subtotal += itemTotal;
+        gstAmount += itemGST;
 
-    // Update stock and create transactions
-    for (const item of items) {
-      const medicine = await Medicine.findOne({ _id: item.medicineId, owner });
-      if (medicine) {
-        const previousStock = medicine.currentStock;
-        medicine.currentStock += item.quantity;
-        if (item.batchNumber) medicine.batchNumber = item.batchNumber;
-        if (item.expiryDate) medicine.expiryDate = new Date(item.expiryDate);
-        medicine.purchasePrice = item.purchasePrice;
-        await medicine.save();
-
-        await StockTransaction.create({
-          owner,
+        const enrichedItem: Record<string, unknown> = {
           medicine: medicine._id,
           medicineName: medicine.name,
-          transactionType: 'purchase',
+          batchNumber: item.batchNumber || medicine.batchNumber || '',
           quantity: item.quantity,
-          previousStock,
-          newStock: medicine.currentStock,
-          reference: purchase.invoiceNumber,
-          referenceId: purchase._id,
-          notes: `Purchase Order: ${purchase.invoiceNumber}`,
-        });
+          purchasePrice: item.purchasePrice,
+          gstPercentage: item.gstPercentage || medicine.gstPercentage,
+          totalAmount: itemTotal + itemGST,
+        };
+        const expiryDate = item.expiryDate || medicine.expiryDate;
+        if (expiryDate) enrichedItem.expiryDate = expiryDate;
+        enrichedItems.push(enrichedItem);
       }
-    }
 
-    // Update supplier outstanding balance
-    if (balance > 0) {
-      supplier.outstandingBalance += balance;
-      await supplier.save();
-    }
+      const totalAmount = subtotal + gstAmount;
+      const paid = paidAmount || 0;
+      const balance = totalAmount - paid;
+      const paymentStatus = balance <= 0 ? 'paid' : paid > 0 ? 'partial' : 'pending';
+      const invoiceNumber = await generateInvoiceNumber(owner!);
 
-    res.status(201).json({ success: true, message: 'Purchase created.', data: purchase });
+      const [purchase] = await Purchase.create(
+        [{
+          owner,
+          invoiceNumber,
+          supplier: supplier._id,
+          supplierName: supplier.name,
+          purchaseDate: purchaseDate || new Date(),
+          items: enrichedItems,
+          subtotal,
+          gstAmount,
+          totalAmount,
+          paidAmount: paid,
+          balanceAmount: balance,
+          paymentStatus,
+          notes: notes || '',
+        }],
+        { session }
+      );
+
+      // Update stock atomically (each item's $inc is race-safe against concurrent
+      // sales/purchases on the same medicine) and record the transaction trail.
+      for (const item of items) {
+        const updateFields: Record<string, unknown> = { purchasePrice: item.purchasePrice };
+        if (item.batchNumber) updateFields.batchNumber = item.batchNumber;
+        if (item.expiryDate) updateFields.expiryDate = new Date(item.expiryDate);
+
+        const updated = await Medicine.findOneAndUpdate(
+          { _id: item.medicineId, owner },
+          { $inc: { currentStock: item.quantity }, $set: updateFields },
+          { new: true, session }
+        );
+
+        if (updated) {
+          stockEvents.push({
+            medicineId: updated._id,
+            medicineName: updated.name,
+            quantity: item.quantity,
+            previousStock: updated.currentStock - item.quantity,
+            newStock: updated.currentStock,
+          });
+        }
+      }
+
+      for (const evt of stockEvents) {
+        await StockTransaction.create(
+          [{
+            owner,
+            medicine: evt.medicineId,
+            medicineName: evt.medicineName,
+            transactionType: 'purchase',
+            quantity: evt.quantity,
+            previousStock: evt.previousStock,
+            newStock: evt.newStock,
+            reference: purchase.invoiceNumber,
+            referenceId: purchase._id,
+            notes: `Purchase Order: ${purchase.invoiceNumber}`,
+          }],
+          { session }
+        );
+      }
+
+      // Update supplier outstanding balance
+      if (balance > 0) {
+        supplier.outstandingBalance += balance;
+        await supplier.save({ session });
+      }
+
+      responsePurchase = purchase;
+    });
+
+    res.status(201).json({ success: true, message: 'Purchase created.', data: responsePurchase });
   } catch (err: unknown) {
+    const statusCode = (err as { statusCode?: number })?.statusCode;
     const msg = err instanceof Error ? err.message : 'Failed to create purchase.';
     console.error('[createPurchase]', msg);
-    res.status(500).json({ success: false, message: msg });
+    res.status(statusCode || 500).json({ success: false, message: msg });
+  } finally {
+    session.endSession();
   }
 };
 
