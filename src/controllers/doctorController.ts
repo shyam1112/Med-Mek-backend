@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import Doctor from '../models/Doctor';
 import { AuthRequest } from '../types';
 import { getPaginationParams } from '../utils/helpers';
@@ -45,6 +46,57 @@ export const searchDoctors = async (req: AuthRequest, res: Response): Promise<vo
     res.json({ success: true, data: doctors });
   } catch {
     res.status(500).json({ success: false, message: 'Failed to search doctors.' });
+  }
+};
+
+// Lightweight lookup for Billing to auto-select the default doctor on a new
+// bill, without loading the whole doctor list.
+export const getDefaultDoctor = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const doctor = await Doctor.findOne({ owner: req.userId, isDefault: true, isActive: true });
+    res.json({ success: true, data: doctor || null });
+  } catch {
+    res.status(500).json({ success: false, message: 'Failed to fetch default doctor.' });
+  }
+};
+
+// At most one doctor per owner can be default — unsetting every other one
+// first (then setting/unsetting this one) keeps that invariant even though
+// it's two writes, since both happen inside the same session/transaction.
+export const setDefaultDoctor = async (req: AuthRequest, res: Response): Promise<void> => {
+  const session = await mongoose.startSession();
+  try {
+    const { isDefault } = req.body;
+    let result: InstanceType<typeof Doctor> | null = null;
+
+    await session.withTransaction(async () => {
+      if (isDefault) {
+        await Doctor.updateMany(
+          { owner: req.userId, _id: { $ne: req.params.id } },
+          { isDefault: false },
+          { session }
+        );
+      }
+      result = await Doctor.findOneAndUpdate(
+        { _id: req.params.id, owner: req.userId },
+        { isDefault: !!isDefault },
+        { new: true, session }
+      );
+      if (!result) {
+        throw Object.assign(new Error('Doctor not found.'), { statusCode: 404 });
+      }
+    });
+
+    res.json({ success: true, message: isDefault ? 'Default doctor set.' : 'Default doctor unset.', data: result });
+  } catch (err) {
+    const statusCode = (err as { statusCode?: number })?.statusCode;
+    if (statusCode) {
+      res.status(statusCode).json({ success: false, message: (err as Error).message });
+      return;
+    }
+    res.status(500).json({ success: false, message: 'Failed to update default doctor.' });
+  } finally {
+    session.endSession();
   }
 };
 

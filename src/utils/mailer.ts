@@ -46,6 +46,7 @@ export const sendPasswordResetEmail = async (to: string, resetToken: string): Pr
         `This code expires in <b>1 hour</b>.</p>` +
         `<p>If you did not request this, you can safely ignore this email.</p>`,
     });
+    console.log(`[mailer] Password reset email sent to ${to}`);
     return true;
   } catch (err) {
     console.error('[mailer] Failed to send password reset email:', err);

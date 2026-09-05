@@ -9,8 +9,8 @@ export const stockIn = async (req: AuthRequest, res: Response): Promise<void> =>
   const session = await mongoose.startSession();
   try {
     const { medicineId, quantity, notes } = req.body;
-    const qty = Number(quantity);
-    if (!Number.isFinite(qty) || qty <= 0) {
+    const packs = Number(quantity);
+    if (!Number.isFinite(packs) || packs <= 0) {
       res.status(400).json({ success: false, message: 'Quantity must be greater than 0.' });
       return;
     }
@@ -18,16 +18,25 @@ export const stockIn = async (req: AuthRequest, res: Response): Promise<void> =>
     let result: { medicine: unknown; transaction: unknown } | null = null;
 
     await session.withTransaction(async () => {
+      // Quantity is entered in packs (matching Purchase Orders) — converted
+      // to individual units, the same denomination currentStock is always
+      // tracked in. unitsPerPack is a static config value (not a concurrently-
+      // mutated counter like currentStock), so reading it first and then
+      // applying an atomic $inc with the precomputed unit amount is safe.
+      const existing = await Medicine.findOne({ _id: medicineId, owner: req.userId }).session(session);
+      if (!existing) {
+        throw Object.assign(new Error('Medicine not found.'), { statusCode: 404 });
+      }
+      const qty = packs * (existing.unitsPerPack || 1);
+
       // Atomic $inc avoids a lost update if two stock changes on the same
       // medicine (e.g. a stock-in and a concurrent sale) land at the same time.
-      const medicine = await Medicine.findOneAndUpdate(
+      // Existence was already confirmed above, so this can't come back null.
+      const medicine = (await Medicine.findOneAndUpdate(
         { _id: medicineId, owner: req.userId },
         { $inc: { currentStock: qty } },
         { new: true, session }
-      );
-      if (!medicine) {
-        throw Object.assign(new Error('Medicine not found.'), { statusCode: 404 });
-      }
+      ))!;
 
       const [transaction] = await StockTransaction.create(
         [{
@@ -63,8 +72,8 @@ export const stockOut = async (req: AuthRequest, res: Response): Promise<void> =
   const session = await mongoose.startSession();
   try {
     const { medicineId, quantity, notes } = req.body;
-    const qty = Number(quantity);
-    if (!Number.isFinite(qty) || qty <= 0) {
+    const packs = Number(quantity);
+    if (!Number.isFinite(packs) || packs <= 0) {
       res.status(400).json({ success: false, message: 'Quantity must be greater than 0.' });
       return;
     }
@@ -72,6 +81,14 @@ export const stockOut = async (req: AuthRequest, res: Response): Promise<void> =
     let result: { medicine: unknown; transaction: unknown } | null = null;
 
     await session.withTransaction(async () => {
+      // Quantity is entered in packs (matching Purchase Orders / stockIn) —
+      // converted to individual units before the guarded decrement below.
+      const existing = await Medicine.findOne({ _id: medicineId, owner: req.userId }).session(session);
+      if (!existing) {
+        throw Object.assign(new Error('Medicine not found.'), { statusCode: 404 });
+      }
+      const qty = packs * (existing.unitsPerPack || 1);
+
       // Atomic check-and-decrement — closes the race where a concurrent sale
       // or another stock-out on the same medicine could both pass a separate
       // "is there enough stock" check before either write lands.
@@ -82,10 +99,8 @@ export const stockOut = async (req: AuthRequest, res: Response): Promise<void> =
       );
 
       if (!medicine) {
-        const existing = await Medicine.findOne({ _id: medicineId, owner: req.userId }).session(session);
-        if (!existing) {
-          throw Object.assign(new Error('Medicine not found.'), { statusCode: 404 });
-        }
+        // Existence was already confirmed above, so reaching here means the
+        // atomic guard (currentStock >= qty) is what failed.
         throw Object.assign(new Error('Insufficient stock.'), { statusCode: 400 });
       }
 

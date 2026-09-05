@@ -18,6 +18,10 @@ const UserSchema = new Schema<IUser>(
     storeGST: { type: String, default: '' },
     storeDLNo: { type: String, default: '' },
     storeUpiId: { type: String, default: '' },
+    // Auto-applied as the bill-level "Extra Discount" (as a %) on every new
+    // bill in Billing — still fully editable/removable per bill. 0 means no
+    // auto-discount, same as today for every existing account.
+    defaultDiscountPercent: { type: Number, default: 0, min: 0, max: 100 },
     status: {
       type: String,
       enum: ['pending', 'approved', 'rejected'],

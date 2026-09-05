@@ -70,6 +70,10 @@ export const createPurchase = async (req: AuthRequest, res: Response): Promise<v
       const stockEvents: {
         medicineId: unknown; medicineName: string; quantity: number; previousStock: number; newStock: number;
       }[] = [];
+      // A pack received from a supplier (e.g. "10 strips") adds
+      // quantity * unitsPerPack individual units to stock — captured here
+      // while `medicine` is in scope, used in the stock-update loop below.
+      const unitsPerPackByMedicineId = new Map<string, number>();
 
       for (const item of items) {
         let medicine;
@@ -96,6 +100,7 @@ export const createPurchase = async (req: AuthRequest, res: Response): Promise<v
               hsnCode: item.newMedicine.hsnCode || '',
               scheduleClass: item.newMedicine.scheduleClass || 'None',
               unitOfMeasure: item.newMedicine.unitOfMeasure || 'Strip',
+              unitsPerPack: item.newMedicine.unitsPerPack || 1,
               storageCondition: item.newMedicine.storageCondition || '',
               location: item.newMedicine.location || '',
               batchNumber: item.batchNumber || '',
@@ -114,6 +119,8 @@ export const createPurchase = async (req: AuthRequest, res: Response): Promise<v
         } else {
           throw Object.assign(new Error('Each item must have a medicineId or newMedicine data.'), { statusCode: 400 });
         }
+
+        unitsPerPackByMedicineId.set(item.medicineId, medicine.unitsPerPack || 1);
 
         const itemTotal = item.quantity * item.purchasePrice;
         const itemGST = (itemTotal * item.gstPercentage) / 100;
@@ -166,9 +173,15 @@ export const createPurchase = async (req: AuthRequest, res: Response): Promise<v
         if (item.batchNumber) updateFields.batchNumber = item.batchNumber;
         if (item.expiryDate) updateFields.expiryDate = new Date(item.expiryDate);
 
+        // Purchases are placed in packs (e.g. "10 strips" from a supplier),
+        // but stock is always counted in individual units — see
+        // billingController.createSale for the matching per-unit side.
+        const unitsPerPack = unitsPerPackByMedicineId.get(item.medicineId) || 1;
+        const unitsReceived = item.quantity * unitsPerPack;
+
         const updated = await Medicine.findOneAndUpdate(
           { _id: item.medicineId, owner },
-          { $inc: { currentStock: item.quantity }, $set: updateFields },
+          { $inc: { currentStock: unitsReceived }, $set: updateFields },
           { new: true, session }
         );
 
@@ -176,8 +189,8 @@ export const createPurchase = async (req: AuthRequest, res: Response): Promise<v
           stockEvents.push({
             medicineId: updated._id,
             medicineName: updated.name,
-            quantity: item.quantity,
-            previousStock: updated.currentStock - item.quantity,
+            quantity: unitsReceived,
+            previousStock: updated.currentStock - unitsReceived,
             newStock: updated.currentStock,
           });
         }

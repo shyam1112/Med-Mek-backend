@@ -63,7 +63,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = await User.findOne({ username: username.toLowerCase() }).select('+password');
+    // Accepts either username or email in the same field — both are stored
+    // lowercase, so a case-insensitive match on either is enough to tell them
+    // apart without needing the client to say which one it typed.
+    const identifier = username.toLowerCase().trim();
+    const user = await User.findOne({
+      $or: [{ username: identifier }, { email: identifier }],
+    }).select('+password');
 
     if (!user || !(await user.comparePassword(password))) {
       res.status(401).json({ success: false, message: 'Invalid username or password.' });
@@ -110,10 +116,10 @@ export const getProfile = async (req: AuthRequest, res: Response): Promise<void>
 
 export const updateProfile = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { name, phone, storeName, storeAddress, storeGST, storeDLNo, storeUpiId } = req.body;
+    const { name, phone, storeName, storeAddress, storeGST, storeDLNo, storeUpiId, defaultDiscountPercent } = req.body;
     const user = await User.findByIdAndUpdate(
       req.userId,
-      { name, phone, storeName, storeAddress, storeGST, storeDLNo, storeUpiId },
+      { name, phone, storeName, storeAddress, storeGST, storeDLNo, storeUpiId, defaultDiscountPercent },
       { new: true, runValidators: true }
     );
     if (!user) {

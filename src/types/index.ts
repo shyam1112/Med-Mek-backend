@@ -18,6 +18,7 @@ export interface IUser extends Document {
   storeGST: string;
   storeDLNo: string;
   storeUpiId: string;
+  defaultDiscountPercent: number;
   status: 'pending' | 'approved' | 'rejected';
   role: 'user' | 'superadmin';
   rejectionReason: string;
@@ -51,6 +52,7 @@ export interface IMedicine extends Document {
   hsnCode: string;
   scheduleClass: 'None' | 'H' | 'H1' | 'X';
   unitOfMeasure: 'Strip' | 'Bottle' | 'Box' | 'Tube' | 'Vial' | 'Piece';
+  unitsPerPack: number;
   storageCondition: string;
   location: string;
   currentStock: number;
@@ -97,6 +99,7 @@ export interface IDoctor extends Document {
   phone: string;
   registrationNo: string;
   isActive: boolean;
+  isDefault: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

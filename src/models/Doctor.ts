@@ -11,6 +11,9 @@ const DoctorSchema = new Schema<IDoctor>(
     phone: { type: String, trim: true, default: '' },
     registrationNo: { type: String, trim: true, default: '' },
     isActive: { type: Boolean, default: true },
+    // At most one doctor per owner has this true — enforced in
+    // doctorController.setDefaultDoctor, not at the schema level.
+    isDefault: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

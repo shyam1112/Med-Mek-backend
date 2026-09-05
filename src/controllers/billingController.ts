@@ -99,7 +99,15 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
           newStock: updated.currentStock,
         });
 
-        const itemSubtotal = quantity * updated.sellingPrice;
+        // Billing always sells by individual unit (tablet/ml/piece...), never
+        // by whole pack — unitsPerPack (default 1) converts the pack price
+        // entered on the medicine into what's actually charged per unit.
+        // `quantity` here (and the stock $inc above) is therefore already in
+        // units, not packs — for unitsPerPack===1 medicines the two are
+        // identical, so this is a no-op for every medicine that hasn't set it.
+        const unitsPerPack = updated.unitsPerPack || 1;
+        const unitPrice = updated.sellingPrice / unitsPerPack;
+        const itemSubtotal = quantity * unitPrice;
         const itemGST = (itemSubtotal * updated.gstPercentage) / 100;
         // Clamp so a stale/manipulated/buggy discount value can never push this
         // line (or, via subtotal below, the whole bill) into a negative total.
@@ -117,7 +125,10 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
           batchNumber: updated.batchNumber,
           expiryDate: updated.expiryDate,
           quantity,
-          sellingPrice: updated.sellingPrice,
+          // Stored per-unit (what was actually charged), not the medicine's
+          // pack price — so a historical invoice stays accurate even if the
+          // medicine's pack price or unitsPerPack changes later.
+          sellingPrice: unitPrice,
           gstPercentage: updated.gstPercentage,
           discount: itemDiscount,
           totalAmount: itemTotal,

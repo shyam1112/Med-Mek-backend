@@ -19,6 +19,12 @@ const MedicineSchema = new Schema<IMedicine>(
     hsnCode: { type: String, trim: true, default: '' },
     scheduleClass: { type: String, enum: ['None', 'H', 'H1', 'X'], default: 'None' },
     unitOfMeasure: { type: String, enum: ['Strip', 'Bottle', 'Box', 'Tube', 'Vial', 'Piece'], default: 'Strip' },
+    // How many individually-sellable units (tablets, ml, pieces...) are in
+    // one pack of purchasePrice/sellingPrice. Defaults to 1 so every existing
+    // medicine (and any pharmacy that never touches this) keeps billing by
+    // whole pack exactly as before — only a medicine where this is explicitly
+    // set above 1 switches to per-unit billing (see billingController.createSale).
+    unitsPerPack: { type: Number, default: 1, min: 1 },
     storageCondition: { type: String, trim: true, default: '' },
     location: { type: String, trim: true, default: '' },
     currentStock: { type: Number, required: true, min: 0, default: 0 },
