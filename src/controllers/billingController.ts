@@ -17,6 +17,11 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
     } = req.body;
     const owner = req.userId;
 
+    if (!customerName?.trim()) {
+      res.status(400).json({ success: false, message: 'Customer name is required.' });
+      return;
+    }
+
     let responseSale: InstanceType<typeof Sale> | null = null;
 
     await session.withTransaction(async () => {
