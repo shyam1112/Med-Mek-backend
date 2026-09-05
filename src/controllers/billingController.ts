@@ -108,7 +108,13 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
         const unitsPerPack = updated.unitsPerPack || 1;
         const unitPrice = updated.sellingPrice / unitsPerPack;
         const itemSubtotal = quantity * unitPrice;
-        const itemGST = (itemSubtotal * updated.gstPercentage) / 100;
+        // Billed GST% is editable per line item on the billing screen (e.g. a
+        // scheme item sold at a different rate than the medicine's stored
+        // GST) — fall back to the medicine's own rate when not supplied.
+        const ALLOWED_GST_RATES = [0, 5, 12, 18, 28];
+        const requestedGST = Number(item.gstPercentage);
+        const itemGSTPercentage = ALLOWED_GST_RATES.includes(requestedGST) ? requestedGST : updated.gstPercentage;
+        const itemGST = (itemSubtotal * itemGSTPercentage) / 100;
         // Clamp so a stale/manipulated/buggy discount value can never push this
         // line (or, via subtotal below, the whole bill) into a negative total.
         const itemDiscount = Math.min(Math.max(Number(item.discount) || 0, 0), itemSubtotal + itemGST);
@@ -129,7 +135,7 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
           // pack price — so a historical invoice stays accurate even if the
           // medicine's pack price or unitsPerPack changes later.
           sellingPrice: unitPrice,
-          gstPercentage: updated.gstPercentage,
+          gstPercentage: itemGSTPercentage,
           discount: itemDiscount,
           totalAmount: itemTotal,
         });
