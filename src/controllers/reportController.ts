@@ -600,17 +600,36 @@ export const getDoctorWiseSalesReport = async (req: AuthRequest, res: Response):
     // Only sales with a doctor on file count as "referred" — walk-ins with no
     // doctor noted are excluded rather than bucketed as "Unspecified", since
     // that's not a referral at all.
-    const referredSales = await Sale.find({
-      owner, saleDate: { $gte: start, $lte: end }, doctorName: { $ne: '' },
-    });
+    const [referredSales, returnsAgg] = await Promise.all([
+      Sale.find({ owner, saleDate: { $gte: start, $lte: end }, doctorName: { $ne: '' } }),
+      // Returns netted by the day they were processed, not the original sale
+      // date — attributed to whichever doctor was on the original sale.
+      SaleReturn.aggregate([
+        { $match: { owner, createdAt: { $gte: start, $lte: end } } },
+        { $lookup: { from: 'sales', localField: 'sale', foreignField: '_id', as: 'saleData' } },
+        { $unwind: '$saleData' },
+        { $match: { 'saleData.doctorName': { $ne: '' } } },
+        { $group: { _id: '$saleData.doctorName', totalReturns: { $sum: '$totalRefund' } } },
+      ]),
+    ]);
+
+    const returnsByDoctor = new Map<string, number>(returnsAgg.map((r) => [r._id, r.totalReturns]));
 
     const byDoctor = renameKey(
       groupBy(referredSales, (s) => s.doctorName, {
         totalBills: () => 1,
         totalRevenue: (s) => s.totalAmount,
-      }).sort((a, b) => (b.totalRevenue as number) - (a.totalRevenue as number)),
+      }),
       'doctorName'
-    );
+    )
+      .map((row) => {
+        const totalReturns = returnsByDoctor.get(row.doctorName as string) || 0;
+        return { ...row, totalReturns, netRevenue: (row.totalRevenue as number) - totalReturns };
+      })
+      .sort((a, b) => (b.netRevenue as number) - (a.netRevenue as number));
+
+    const grossReferredRevenue = referredSales.reduce((sum, s) => sum + s.totalAmount, 0);
+    const totalReturns = returnsAgg.reduce((sum, r) => sum + r.totalReturns, 0);
 
     res.json({
       success: true,
@@ -618,7 +637,9 @@ export const getDoctorWiseSalesReport = async (req: AuthRequest, res: Response):
         summary: {
           totalDoctors: byDoctor.length,
           totalReferredBills: referredSales.length,
-          totalReferredRevenue: referredSales.reduce((sum, s) => sum + s.totalAmount, 0),
+          totalReferredRevenue: grossReferredRevenue,
+          totalReturns,
+          netReferredRevenue: grossReferredRevenue - totalReturns,
         },
         byDoctor,
       },
@@ -644,8 +665,11 @@ export const getHsnSummaryReport = async (req: AuthRequest, res: Response): Prom
     const { startDate, endDate } = req.query;
     const { start, end } = parseReportDateRange(startDate as string, endDate as string);
 
-    const [sales, hsnMap] = await Promise.all([
+    const [sales, returns, hsnMap] = await Promise.all([
       Sale.find({ owner, saleDate: { $gte: start, $lte: end } }),
+      // Returns netted by the day they were processed, not the original sale
+      // date — same convention as the Daily/Monthly/Profit reports.
+      SaleReturn.find({ owner, createdAt: { $gte: start, $lte: end } }),
       getHsnMap(owner),
     ]);
 
@@ -660,6 +684,24 @@ export const getHsnSummaryReport = async (req: AuthRequest, res: Response): Prom
           quantity: i.quantity,
           taxableValue: i.quantity * i.sellingPrice - i.discount,
           totalValue: i.totalAmount,
+        };
+      })
+    );
+
+    // Return line items have no separate discount field — refundAmount is
+    // already the net (post-discount) amount refunded — so the taxable value
+    // is backed out of it the same way itemGST is derived on the sale side.
+    const returnItems: HsnItem[] = returns.flatMap((r) =>
+      r.items.map((i) => {
+        const meta = hsnMap.get(String(i.medicine)) || { hsnCode: 'Not Set', unitOfMeasure: 'Strip' };
+        return {
+          hsnCode: meta.hsnCode,
+          unitOfMeasure: meta.unitOfMeasure,
+          medicineName: i.medicineName,
+          gstPercentage: i.gstPercentage,
+          quantity: i.quantity,
+          taxableValue: i.refundAmount / (1 + i.gstPercentage / 100),
+          totalValue: i.refundAmount,
         };
       })
     );
@@ -687,11 +729,22 @@ export const getHsnSummaryReport = async (req: AuthRequest, res: Response): Prom
       totalValue: (i) => i.totalValue,
     });
 
+    const returnsByRow = new Map(
+      groupBy(returnItems, rowKey, {
+        totalQuantity: (i) => i.quantity,
+        taxableValue: (i) => i.taxableValue,
+        totalValue: (i) => i.totalValue,
+      }).map((r) => [r.key, r])
+    );
+
     const hsnSummary = grouped
       .map(({ key, ...sums }) => {
         const [hsnCode, gstStr] = key.split('__');
         const gstPercentage = Number(gstStr);
-        const taxableValue = sums.taxableValue as number;
+        const ret = returnsByRow.get(key);
+        const totalQuantity = (sums.totalQuantity as number) - ((ret?.totalQuantity as number) || 0);
+        const taxableValue = (sums.taxableValue as number) - ((ret?.taxableValue as number) || 0);
+        const totalValue = (sums.totalValue as number) - ((ret?.totalValue as number) || 0);
         // Intra-state sale assumed (same convention used for invoices elsewhere
         // in this app) — GST splits evenly into CGST + SGST.
         const cgstAmount = Math.round(((taxableValue * gstPercentage) / 200) * 100) / 100;
@@ -701,11 +754,11 @@ export const getHsnSummaryReport = async (req: AuthRequest, res: Response): Prom
           description: rowMeta.get(key)?.description || '',
           uqc: rowMeta.get(key)?.unitOfMeasure || 'Strip',
           gstRate: `${gstPercentage}%`,
-          totalQuantity: sums.totalQuantity,
+          totalQuantity,
           taxableValue,
           cgstAmount,
           sgstAmount,
-          totalValue: sums.totalValue,
+          totalValue,
         };
       })
       .sort((a, b) => (b.totalValue as number) - (a.totalValue as number));
@@ -717,6 +770,7 @@ export const getHsnSummaryReport = async (req: AuthRequest, res: Response): Prom
       totalTaxableValue: round2(hsnSummary.reduce((sum, r) => sum + r.taxableValue, 0)),
       totalTax: round2(hsnSummary.reduce((sum, r) => sum + r.cgstAmount + r.sgstAmount, 0)),
       totalInvoiceValue: round2(hsnSummary.reduce((sum, r) => sum + (r.totalValue as number), 0)),
+      totalReturns: round2(returnItems.reduce((sum, i) => sum + i.totalValue, 0)),
     };
 
     res.json({ success: true, data: { summary, hsnSummary } });
