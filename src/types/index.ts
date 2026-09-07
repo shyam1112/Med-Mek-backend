@@ -145,6 +145,10 @@ export interface ISaleItem {
   sellingPrice: number;
   gstPercentage: number;
   discount: number;
+  // Set only when the discount was entered as a percentage on the billing
+  // screen — lets the printed invoice show "10%" instead of the equivalent
+  // rupee amount. Undefined for a flat-rupee discount (or no discount).
+  discountPercent?: number;
   totalAmount: number;
 }
 
@@ -165,6 +169,10 @@ export interface ISale extends Document {
   cgstAmount: number;
   sgstAmount: number;
   discountAmount: number;
+  // Set only when the bill-level Extra Discount was entered as a percentage —
+  // lets the printed invoice show "10%" instead of the equivalent rupee
+  // amount. Undefined for a flat-rupee discount (or no discount).
+  discountPercent?: number;
   totalAmount: number;
   totalReturned: number;
   paymentMode: 'cash' | 'card' | 'upi' | 'credit';

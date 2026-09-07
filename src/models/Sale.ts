@@ -13,6 +13,7 @@ const SaleItemSchema = new Schema(
     sellingPrice: { type: Number, required: true, min: 0 },
     gstPercentage: { type: Number, default: 0 },
     discount: { type: Number, default: 0 },
+    discountPercent: { type: Number, min: 0, max: 100 },
     totalAmount: { type: Number, required: true },
   },
   { _id: false }
@@ -35,6 +36,7 @@ const SaleSchema = new Schema<ISale>(
     cgstAmount: { type: Number, default: 0 },
     sgstAmount: { type: Number, default: 0 },
     discountAmount: { type: Number, default: 0 },
+    discountPercent: { type: Number, min: 0, max: 100 },
     totalAmount: { type: Number, required: true },
     totalReturned: { type: Number, default: 0 },
     paymentMode: { type: String, enum: ['cash', 'card', 'upi', 'credit'], default: 'cash' },

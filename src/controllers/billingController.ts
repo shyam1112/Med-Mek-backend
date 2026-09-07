@@ -13,7 +13,7 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
   try {
     const {
       customerId, customerName, customerMobile, customerAddress, doctorId, doctorName,
-      items, paymentMode, notes, discountAmount, cgstAmount, sgstAmount,
+      items, paymentMode, notes, discountAmount, discountPercent, cgstAmount, sgstAmount,
     } = req.body;
     const owner = req.userId;
 
@@ -124,6 +124,13 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
         // line (or, via subtotal below, the whole bill) into a negative total.
         const itemDiscount = Math.min(Math.max(Number(item.discount) || 0, 0), itemSubtotal + itemGST);
         const itemTotal = itemSubtotal + itemGST - itemDiscount;
+        // Purely a display hint for the printed invoice (show "10%" instead of
+        // the rupee equivalent) — the actual money math above already uses the
+        // computed rupee itemDiscount regardless of how it was entered.
+        const requestedDiscountPercent = Number(item.discountPercent);
+        const itemDiscountPercent = requestedDiscountPercent > 0 && requestedDiscountPercent <= 100
+          ? requestedDiscountPercent
+          : undefined;
 
         subtotal += itemSubtotal;
         totalGST += itemGST;
@@ -142,6 +149,7 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
           sellingPrice: unitPrice,
           gstPercentage: itemGSTPercentage,
           discount: itemDiscount,
+          discountPercent: itemDiscountPercent,
           totalAmount: itemTotal,
         });
       }
@@ -156,6 +164,13 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
       const discount = Math.min(Math.max(Number(discountAmount) || 0, 0), subtotal + finalGstAmount);
       const totalAmount = subtotal + finalGstAmount - discount;
       const billNumber = await generateBillNumber(owner!);
+      // Purely a display hint for the printed invoice (show "10%" instead of
+      // the rupee equivalent) — the money math above already uses the
+      // computed rupee `discount` regardless of how it was entered.
+      const requestedDiscountPercent = Number(discountPercent);
+      const finalDiscountPercent = requestedDiscountPercent > 0 && requestedDiscountPercent <= 100
+        ? requestedDiscountPercent
+        : undefined;
 
       const [sale] = await Sale.create(
         [{
@@ -173,6 +188,7 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
           cgstAmount: finalCgstAmount,
           sgstAmount: finalSgstAmount,
           discountAmount: discount,
+          discountPercent: finalDiscountPercent,
           totalAmount,
           paymentMode: paymentMode || 'cash',
           notes: notes || '',
