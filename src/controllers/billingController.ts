@@ -64,6 +64,7 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
 
       let subtotal = 0;
       let totalGST = 0;
+      let totalItemDiscount = 0;
       const enrichedItems = [];
       const stockEvents: {
         medicineId: unknown; medicineName: string; quantity: number; previousStock: number; newStock: number;
@@ -134,6 +135,7 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
 
         subtotal += itemSubtotal;
         totalGST += itemGST;
+        totalItemDiscount += itemDiscount;
 
         enrichedItems.push({
           medicine: updated._id,
@@ -161,8 +163,13 @@ export const createSale = async (req: AuthRequest, res: Response): Promise<void>
       const finalCgstAmount = hasCustomSplit ? Math.max(0, cgstAmount) : totalGST / 2;
       const finalSgstAmount = hasCustomSplit ? Math.max(0, sgstAmount) : totalGST / 2;
       const finalGstAmount = finalCgstAmount + finalSgstAmount;
-      const discount = Math.min(Math.max(Number(discountAmount) || 0, 0), subtotal + finalGstAmount);
-      const totalAmount = subtotal + finalGstAmount - discount;
+      // Item-level discounts were already subtracted from each line's own
+      // totalAmount above (itemTotal) — they must also come off the bill-level
+      // total here, or the invoice's Grand Total silently overcharges by the
+      // sum of every item discount instead of matching the sum of the lines.
+      const amountAfterItemDiscounts = Math.max(0, subtotal + finalGstAmount - totalItemDiscount);
+      const discount = Math.min(Math.max(Number(discountAmount) || 0, 0), amountAfterItemDiscounts);
+      const totalAmount = amountAfterItemDiscounts - discount;
       const billNumber = await generateBillNumber(owner!);
       // Purely a display hint for the printed invoice (show "10%" instead of
       // the rupee equivalent) — the money math above already uses the
